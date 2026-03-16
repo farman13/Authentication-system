@@ -3,7 +3,6 @@ import ApiResponse from "../utils/ApiResponse.js";
 import AsyncHandler from "../utils/AsyncHandler.js";
 import jwt from "jsonwebtoken";
 import { config } from "../config/config.js";
-import bcrypt from "bcrypt";
 
 const generateAccessandRefreshToken = async (userId) => {
     const accessToken = jwt.sign({ id: userId }, config.jwtSecret, { expiresIn: "15m" });
@@ -25,9 +24,8 @@ export const register = AsyncHandler(async (req, res) => {
         return res.status(201).json(new ApiResponse(201, { message: "User with this email or username already exist" }))
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = new User({ username, email, password: hashedPassword });
+    const newUser = new User({ username, email, password });
     await newUser.save();
 
     const { accessToken, refreshToken } = await generateAccessandRefreshToken(newUser._id);
