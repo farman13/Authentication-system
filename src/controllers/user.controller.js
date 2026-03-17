@@ -3,12 +3,19 @@ import ApiResponse from "../utils/ApiResponse.js";
 import AsyncHandler from "../utils/AsyncHandler.js";
 import jwt from "jsonwebtoken";
 import { config } from "../config/config.js";
+import { Session } from "../models/session.model.js";
+import bcrypt from 'bcrypt';
 
-const generateAccessandRefreshToken = async (userId) => {
-    const accessToken = jwt.sign({ id: userId }, config.jwtSecret, { expiresIn: "15m" });
+const generateAccessToken = async (userId, sessionId) => {
+    const accessToken = jwt.sign({ id: userId, sessionId: sessionId }, config.jwtSecret, { expiresIn: "15m" });
+
+    return accessToken;
+}
+
+const generateRefreshToken = async (userId) => {
     const refreshToken = jwt.sign({ id: userId }, config.jwtSecret, { expiresIn: "7d" });
 
-    return { accessToken, refreshToken };
+    return refreshToken;
 }
 
 export const register = AsyncHandler(async (req, res) => {
@@ -28,7 +35,17 @@ export const register = AsyncHandler(async (req, res) => {
     const newUser = new User({ username, email, password });
     await newUser.save();
 
-    const { accessToken, refreshToken } = await generateAccessandRefreshToken(newUser._id);
+    const refreshToken = await generateRefreshToken(newUser._id);
+    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+    const newSession = new Session({
+        user: newUser,
+        refreshTokenHash,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"]
+    })
+
+    const accessToken = await generateAccessToken(newUser._id, newSession._id);
 
     res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
@@ -57,7 +74,18 @@ export const login = AsyncHandler(async (req, res) => {
         return res.json(new ApiResponse(403, "Incorrect Password"));
     }
 
-    const { accessToken, refreshToken } = await generateAccessandRefreshToken(user._id);
+    const refreshToken = await generateRefreshToken(user._id);
+
+    const newSession = new Session({
+        user,
+        refreshTokenHash: await bcrypt.hash(refreshToken, 10),
+        ip: req.ip,
+        userAgent: req.headers["user-agent"]
+    })
+
+    await newSession.save();
+
+    const accessToken = await generateAccessToken(user._id, newSession._id);
 
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
