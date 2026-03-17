@@ -40,6 +40,36 @@ export const register = AsyncHandler(async (req, res) => {
     res.status(201).json(new ApiResponse(201, { accessToken }, "User registered successfully"));
 });
 
+export const login = AsyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.json(new ApiResponse(403, "Username or password required"));
+    }
+
+    const user = await User.findOne({ email })
+
+    if (!user) {
+        return res.json(new ApiResponse(401, "User not exist"));
+    }
+
+    if (!await user.isPasswordCorrect(password)) {
+        return res.json(new ApiResponse(403, "Incorrect Password"));
+    }
+
+    const { accessToken, refreshToken } = await generateAccessandRefreshToken(user._id);
+
+    res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    })
+
+    res.json(new ApiResponse(200, { accessToken }, "User loggedIn Successfully"))
+
+})
+
 export const getMe = AsyncHandler(async (req, res) => {
     const user = await User.findById(req.user.id).select("-password");
     if (!user) {
