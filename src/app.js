@@ -10,6 +10,6 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
 
-app.use('/api/user', userRouter);
+app.use('/api/v1/user', userRouter);
 
 export default app;

@@ -44,27 +44,6 @@ export const register = AsyncHandler(async (req, res) => {
     const newUser = new User({ username, email, password });
     await newUser.save();
 
-    // const newSession = new Session({
-    //     userId: newUser._id,
-    //     ip: req.ip,
-    //     userAgent: req.headers["user-agent"]
-    // })
-
-    // const refreshToken = generateRefreshToken(newUser._id, newSession._id);
-    // const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-
-    // newSession.refreshTokenHash = refreshTokenHash;
-    // await newSession.save();
-
-    // const accessToken = generateAccessToken(newUser._id, newSession._id);
-
-    // res.cookie("refreshToken", refreshToken, {
-    //     httpOnly: true,
-    //     secure: true,
-    //     sameSite: "strict",
-    //     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    // });
-
     const otp = generateOtp();
     const otpHtml = generateOtpHtml(otp);
     const otpHash = await bcrypt.hash(otp, 10);
@@ -120,7 +99,7 @@ export const login = AsyncHandler(async (req, res) => {
         httpOnly: true,
         secure: true,
         sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        maxAge: 7 * 24 * 60 * 60 * 1000
     })
 
     res.json(new ApiResponse(200, { accessToken }, "User logged In Successfully"))
