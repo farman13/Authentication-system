@@ -15,7 +15,11 @@ const userSchema = new Schema({
     password: {
         type: String,
         required: true
-    }
+    },
+    verified: {
+        type: Boolean,
+        default: false
+    },
 });
 userSchema.pre("save", async function () {
 

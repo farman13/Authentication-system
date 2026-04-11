@@ -5,6 +5,9 @@ import jwt from "jsonwebtoken";
 import { config } from "../config/config.js";
 import { Session } from "../models/session.model.js";
 import bcrypt from 'bcrypt';
+import { generateOtpHtml, generateOtp } from "../utils/OTP.js";
+import { OTP } from "../models/otp.model.js";
+import { sendEmail } from "../services/email.service.js";
 
 const generateAccessToken = (userId, sessionId) => {
     const accessToken = jwt.sign({ id: userId, sessionId: sessionId }, config.jwtSecret, { expiresIn: "15m" });
@@ -41,28 +44,41 @@ export const register = AsyncHandler(async (req, res) => {
     const newUser = new User({ username, email, password });
     await newUser.save();
 
-    const newSession = new Session({
+    // const newSession = new Session({
+    //     userId: newUser._id,
+    //     ip: req.ip,
+    //     userAgent: req.headers["user-agent"]
+    // })
+
+    // const refreshToken = generateRefreshToken(newUser._id, newSession._id);
+    // const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+    // newSession.refreshTokenHash = refreshTokenHash;
+    // await newSession.save();
+
+    // const accessToken = generateAccessToken(newUser._id, newSession._id);
+
+    // res.cookie("refreshToken", refreshToken, {
+    //     httpOnly: true,
+    //     secure: true,
+    //     sameSite: "strict",
+    //     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    // });
+
+    const otp = generateOtp();
+    const otpHtml = generateOtpHtml(otp);
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    const newOtp = new OTP({
+        email,
         userId: newUser._id,
-        ip: req.ip,
-        userAgent: req.headers["user-agent"]
+        otpHash
     })
+    await newOtp.save();
 
-    const refreshToken = generateRefreshToken(newUser._id, newSession._id);
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    await sendEmail(email, "Verify your email", `Your OTP is ${otp}`, otpHtml);
 
-    newSession.refreshTokenHash = refreshTokenHash;
-    await newSession.save();
-
-    const accessToken = generateAccessToken(newUser._id, newSession._id);
-
-    res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
-
-    res.status(201).json(new ApiResponse(201, { accessToken }, "User registered successfully"));
+    res.status(201).json(new ApiResponse(201, { newUser }, "User registered successfully"));
 });
 
 export const login = AsyncHandler(async (req, res) => {
@@ -82,19 +98,23 @@ export const login = AsyncHandler(async (req, res) => {
         return res.json(new ApiResponse(403, "Incorrect Password"));
     }
 
+    if (!user.verified) {
+        return res.json(new ApiResponse(403, "Please verify your email before logging in"));
+    }
+
     const newSession = new Session({
         userId: user._id,
         ip: req.ip,
         userAgent: req.headers["user-agent"]
     })
 
-    const refreshToken = generateRefreshToken(newUser._id, newSession._id);
+    const refreshToken = generateRefreshToken(user._id, newSession._id);
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
 
     newSession.refreshTokenHash = refreshTokenHash;
     await newSession.save();
 
-    const accessToken = generateAccessToken(newUser._id, newSession._id);
+    const accessToken = generateAccessToken(user._id, newSession._id);
 
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
@@ -191,4 +211,27 @@ export const logoutAll = AsyncHandler(async (req, res) => {
 
     res.json(new ApiResponse(200, "Logged out from all devices successfully"))
 
+})
+
+export const verifyEmail = AsyncHandler(async (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+        return res.json(new ApiResponse(403, "Email and OTP are required"));
+    }
+    const otpRecord = await OTP.findOne({ email }).sort({ createdAt: -1 });
+
+    if (!otpRecord) {
+        return res.json(new ApiResponse(404, "OTP not found"));
+    }
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otpHash);
+
+    if (!isOtpValid) {
+        return res.json(new ApiResponse(403, "Invalid OTP"));
+    }
+    const user = await User.findById(otpRecord.userId);
+    user.verified = true;
+    await user.save();
+    await OTP.deleteMany({ email });
+
+    res.json(new ApiResponse(200, "Email verified successfully"));
 })
