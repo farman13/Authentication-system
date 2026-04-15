@@ -9,14 +9,14 @@ import { generateOtpHtml, generateOtp } from "../utils/OTP.js";
 import { OTP } from "../models/otp.model.js";
 import { sendEmail } from "../services/email.service.js";
 
-const generateAccessToken = (userId, sessionId) => {
-    const accessToken = jwt.sign({ id: userId, sessionId: sessionId }, config.jwtSecret, { expiresIn: "15m" });
+const generateAccessToken = (userId, role, sessionId) => {
+    const accessToken = jwt.sign({ id: userId, role: role, sessionId: sessionId }, config.jwtSecret, { expiresIn: "15m" });
 
     return accessToken;
 }
 
-const generateRefreshToken = (userId) => {
-    const refreshToken = jwt.sign({ id: userId }, config.jwtSecret, { expiresIn: "7d" });
+const generateRefreshToken = (userId, role, sessionId) => {
+    const refreshToken = jwt.sign({ id: userId, role: role, sessionId: sessionId }, config.jwtSecret, { expiresIn: "7d" });
 
     return refreshToken;
 }
@@ -87,13 +87,13 @@ export const login = AsyncHandler(async (req, res) => {
         userAgent: req.headers["user-agent"]
     })
 
-    const refreshToken = generateRefreshToken(user._id, newSession._id);
+    const refreshToken = generateRefreshToken(user._id, user.role, newSession._id);
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
 
     newSession.refreshTokenHash = refreshTokenHash;
     await newSession.save();
 
-    const accessToken = generateAccessToken(user._id, newSession._id);
+    const accessToken = generateAccessToken(user._id, user.role, newSession._id);
 
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
