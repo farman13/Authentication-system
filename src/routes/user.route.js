@@ -7,9 +7,9 @@ const userRouter = Router();
 userRouter.post('/register', register);
 userRouter.post('/login', login);
 userRouter.get('/profile', authMiddleware, getMe);
-userRouter.get('/refresh-token', rotateToken);
-userRouter.get('/logout', logout);
-userRouter.get('/logoutAll', logoutAll);
-userRouter.get('/verify-email', verifyEmail);
+userRouter.post('/token/refresh', rotateToken);
+userRouter.post('/logout', authMiddleware, logout);
+userRouter.post('/logout-all', authMiddleware, logoutAll);
+userRouter.post('/verify-email', verifyEmail);
 
 export default userRouter;

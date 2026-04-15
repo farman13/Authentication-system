@@ -28,7 +28,7 @@ const getDecodedToken = async (token) => {
 }
 
 export const register = AsyncHandler(async (req, res) => {
-    const { username, email, password } = req.body;
+    const { username, email, password, role = 'user' } = req.body;
 
     if (!username || !email || !password) {
         return res.status(400).json(new ApiResponse(400, { message: "All fields are required" }));
@@ -41,7 +41,7 @@ export const register = AsyncHandler(async (req, res) => {
     }
 
 
-    const newUser = new User({ username, email, password });
+    const newUser = new User({ username, email, password, role });
     await newUser.save();
 
     const otp = generateOtp();
@@ -61,13 +61,13 @@ export const register = AsyncHandler(async (req, res) => {
 });
 
 export const login = AsyncHandler(async (req, res) => {
-    const { email, password } = req.body;
+    const { username, email, password } = req.body;
 
     if (!email || !password) {
         return res.json(new ApiResponse(403, "Username or password required"));
     }
 
-    const user = await User.findOne({ email })
+    const user = await User.findOne({ $or: [{ email }, { username }] });
 
     if (!user) {
         return res.json(new ApiResponse(401, "User not exist"));
